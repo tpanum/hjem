@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="da">
+  <head>
+    <meta charset="UTF-8">
+    <title>Hjem: Et værktøj til prissætning af boliger</title>
+  </head>
+  <body>
+    <div class="centered">
+	<form id="search">
+	    <div>
+		<div class="col" style="width: 84%">
+		    <label for="query">Søg...</label>
+		    <input name="query" type="text" placeholder="Address..." />
+		</div>
+		<div class="col" style="width: 60px; vertical-align: bottom;">
+		    <button type="submit">
+			Søg
+		    </button>
+		</div>
+	    </div>
+	    <div id="loader-icon" style="display:none;">
+		<div class="lds-ellipsis"><div></div><div></div><div></div><div></div></div>
+		<div class="txt">Førstegangs søgninger kan tage flere minutter...</div>
+	    </div>
+	    <div id="error-msg" class="info" style="display:none;">
+		Something went wrong!
+	    </div>
+	    <div style="margin: .5em 0 0 0;">
+		<div class="col" style="width:48%;">
+		    <label for="filter">Filtrering</label>
+		    <select id="filter" name="filter">
+			<option value="-1">Ingen</option>
+			<option value="3">x < 3σ</option>
+			<option value="2">x < 2σ</option>
+			<option value="1" selected>x < σ</option>
+		    </select>
+		    <div class="info">
+			Der er observeret at kilden til salgspriser til tider indeholder <u>få</u> priser som er <i>yderest unormale</i>.
+			For at rette fokus til normale salgspriser, er det muligt at filtrere salg så kun at salg som har en kvadratmeterpris <i>x</i> som under en faktor af <a href="https://da.wikipedia.org/wiki/Standardafvigelse">standardavigelsen (σ)</a> for kvadratmeterpriser for det indeværerende salgsår.
+		    </div>
+		</div>
+		<div class="col" style="width:48%;">
+		    <label for="range">Område</label>
+		    <select id="range" name="range">
+			<option value="250" selected>< 250m</option>
+			<option value="500">< 500m</option>
+			<option value="750">< 750m</option>
+			<option value="1000">< 1000m</option>
+		    </select>
+		    <div class="info">
+			Her specificeres lokalområdet, der anvendes til sammenligningen, som en radius fra addressen som der søges på.
+		    </div>
+		</div>
+	    </div>
+	</form>
+	<div>
+	    <div id ="datasets" class="info" style="display: none;">Rådata er tilgængelig her: <a id="csvlink">CSV</a></div>
+	</div>
+	<div>
+	<canvas id="prices"></canvas>
+	</div>
+	<div>
+	    <canvas id="sqmeters"></canvas>
+	</div>
+    </div>
+    <footer>
+	Initial design by <a href="https://github.com/tpanum">Thomas Kobber Panum</a>
+    </footer>
+    <script src="/dist/app.bundle.js"></script>
+  </body>
+</html>

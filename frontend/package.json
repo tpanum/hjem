@@ -1,0 +1,27 @@
+{
+  "name": "frontend-hjem",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --config webpack.prod.js",
+    "dev": "webpack --config webpack.dev.js"
+  },
+  "author": "Thomas Kobber Panum",
+  "license": "MIT",
+  "devDependencies": {
+    "chart.js": "^3.2.1",
+    "css-loader": "^5.2.4",
+    "source-map-loader": "^2.0.1",
+    "style-loader": "^2.0.0",
+    "webpack": "^5.36.2",
+    "webpack-cli": "^4.7.0"
+  },
+  "dependencies": {
+    "chartjs-adapter-date-fns": "^2.0.0",
+    "date-fns": "^2.21.2",
+    "html-webpack-plugin": "^5.3.1",
+    "webpack-merge": "^5.7.3"
+  }
+}
