@@ -112,8 +112,9 @@ func (a Address) Headers() []string {
 	}
 }
 
-type DawaCacher struct {
-	db *gorm.DB
+type dawaCacher struct {
+	db        *gorm.DB
+	maxAmount float64
 }
 
 type DawaQueryCache struct {
@@ -148,16 +149,21 @@ func (dqc DawaQueryCache) Identifiers() []int {
 	return uids
 }
 
-func NewDawaCacher(db *gorm.DB) *DawaCacher {
+type DawaCacher interface {
+	Do(DawaRequest) ([]*Address, error)
+}
+
+func NewDawaCacher(db *gorm.DB) *dawaCacher {
 	db.AutoMigrate(&DawaQueryCache{})
 	db.AutoMigrate(&Address{})
 
-	return &DawaCacher{
-		db: db,
+	return &dawaCacher{
+		maxAmount: 50.0,
+		db:        db,
 	}
 }
 
-func (c DawaCacher) Do(req DawaRequest) ([]*Address, error) {
+func (c dawaCacher) Do(req DawaRequest) ([]*Address, error) {
 	reqStr := fmt.Sprintf("%s", req.Request().URL)
 
 	var cache DawaQueryCache
@@ -192,11 +198,10 @@ func (c DawaCacher) Do(req DawaRequest) ([]*Address, error) {
 
 	var addrs []*Address
 	ids := cache.Identifiers()
-	maxAmount := 50.0
-	r := int(math.Ceil(float64(len(ids)) / maxAmount))
+	r := int(math.Ceil(float64(len(ids)) / c.maxAmount))
 	for i := 0; i < r; i++ {
 		var tempAddrs []*Address
-		start, end := int(maxAmount)*i, int(maxAmount)*(i+1)
+		start, end := int(c.maxAmount)*i, int(c.maxAmount)*(i+1)
 		end = int(math.Min(float64(len(ids)), float64(end)))
 		if err := c.db.Find(&tempAddrs, ids[start:end]).Error; err != nil {
 			return nil, err
@@ -208,14 +213,13 @@ func (c DawaCacher) Do(req DawaRequest) ([]*Address, error) {
 	return addrs, nil
 }
 
-func (c DawaCacher) safeCreateOrGetAddrs(addrs []*Address) error {
-	maxAmount := 50.0
+func (c dawaCacher) safeCreateOrGetAddrs(addrs []*Address) error {
 	n := float64(len(addrs))
-	r := int(math.Ceil(n / maxAmount))
+	r := int(math.Ceil(n / c.maxAmount))
 
 	m := map[string]*Address{}
 	for i := 0; i < r; i++ {
-		start, end := int(maxAmount)*i, int(maxAmount)*(i+1)
+		start, end := int(c.maxAmount)*i, int(c.maxAmount)*(i+1)
 		end = int(math.Min(n, float64(end)))
 
 		var tempAddrs []*Address
@@ -246,7 +250,7 @@ func (c DawaCacher) safeCreateOrGetAddrs(addrs []*Address) error {
 		addrs[i] = exsts
 	}
 
-	if err := c.db.CreateInBatches(&createAddrs, int(maxAmount)).Error; err != nil {
+	if err := c.db.CreateInBatches(&createAddrs, int(c.maxAmount)).Error; err != nil {
 		return err
 	}
 
@@ -264,7 +268,7 @@ func reqToAddrs(req *http.Request) ([]*Address, error) {
 	q.Add("struktur", "mini")
 	req.URL.RawQuery = q.Encode()
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

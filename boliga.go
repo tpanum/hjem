@@ -50,12 +50,17 @@ type BoligaCacherResp struct {
 	err   error
 }
 
-type BoligaCacher struct {
+type BoligaCacher interface {
+	io.Closer
+	FetchSales([]*Address) ([][]Sale, error)
+}
+
+type boligaCacher struct {
 	db *gorm.DB
 	in chan BoligaCacherTask
 }
 
-func NewBoligaCacher(db *gorm.DB, n int) *BoligaCacher {
+func NewBoligaCacher(db *gorm.DB, n int) *boligaCacher {
 	in := make(chan BoligaCacherTask)
 
 	for i := 0; i < n; i++ {
@@ -69,16 +74,17 @@ func NewBoligaCacher(db *gorm.DB, n int) *BoligaCacher {
 
 	db.AutoMigrate(&Sale{})
 
-	return &BoligaCacher{db, in}
+	return &boligaCacher{db, in}
 }
 
-func (bc *BoligaCacher) Close() {
+func (bc *boligaCacher) Close() error {
 	close(bc.in)
+	return nil
 }
 
 const oneMonth time.Duration = time.Hour * 24 * 31
 
-func (bc *BoligaCacher) FetchSales(addrs []*Address) ([][]Sale, error) {
+func (bc *boligaCacher) FetchSales(addrs []*Address) ([][]Sale, error) {
 	cachedAddrs := map[int]*Address{}
 	fetchAddrs := map[int]*Address{}
 	var salesExpired []uint
@@ -366,7 +372,7 @@ func (r BoligaPropertyRequest) Fetch() ([]BoligaSaleItem, error) {
 		req.URL.RawQuery = q.Encode()
 
 		var sr BoligaSalesResponse
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := DefaultClient.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -394,7 +400,7 @@ func PropertyFromBoligaItem(si BoligaSaleItem) (*BoligaProperty, error) {
 		si.EstateCode,
 		si.Guid,
 	)
-	resp, err := http.Get(query)
+	resp, err := DefaultClient.Get(query)
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +420,7 @@ func PropertyFromBoligaItem(si BoligaSaleItem) (*BoligaProperty, error) {
 	path, ok := doc.Find(".sales-overview-table.h-100 .table-row").Find("a").Attr("href")
 	if ok {
 		query = "https://www.boliga.dk" + path
-		resp, err = http.Get(query)
+		resp, err = DefaultClient.Get(query)
 		if err != nil {
 			return nil, err
 		}
@@ -434,7 +440,7 @@ func PropertyFromBoligaItem(si BoligaSaleItem) (*BoligaProperty, error) {
 			amount, _ := DirtyStringToInt(cols.Eq(1).Find("span").Eq(1).Text())
 			timestr := cols.Eq(2).Find("span").Eq(1).Text()
 
-			saleDate := DanishDateToTime(timestr, "2 1 2006")
+			saleDate, _ := DanishDateToTime("2. jan. 2006", timestr)
 			uniqueSales[Sale{
 				AmountDKK: amount,
 				Date:      saleDate,
@@ -522,44 +528,51 @@ func DirtyStringToInt(s string) (int, error) {
 	s = strings.Replace(s, ".", "", -1)
 	matches := numbersOnlyRegexp.FindAllString(s, 1)
 	if len(matches) == 0 {
-		return 0, fmt.Errorf("unable to locate number")
+		return 0, &strconv.NumError{
+			Func: "DirtyStringToInt",
+			Num:  s,
+			Err:  strconv.ErrSyntax,
+		}
 	}
 
 	return strconv.Atoi(matches[0])
 }
 
 var (
-	daToEn = map[string]int{
-		"jan": 1,
-		"feb": 2,
-		"mar": 3,
-		"apr": 4,
-		"maj": 5,
-		"jun": 6,
-		"jul": 7,
-		"aug": 8,
-		"sep": 9,
-		"okt": 10,
-		"nov": 11,
-		"dec": 12,
+	daToEn = map[string]string{
+		"feb": "Feb",
+		"mar": "Mar",
+		"apr": "Apr",
+		"maj": "May",
+		"jun": "Jun",
+		"jul": "Jul",
+		"aug": "Aug",
+		"sep": "Sep",
+		"okt": "Oct",
+		"nov": "Nov",
+		"dec": "Dec",
 	}
 )
 
-func DanishDateToTime(s string, format string) time.Time {
-	s = strings.TrimSpace(s)
-	s = strings.ToLower(s)
+func DanishDateToTime(format string, s string) (time.Time, error) {
+	clean := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.Replace(s, ".", "", -1)
+		s = strings.Replace(s, "jan", "Jan", -1)
+		return s
+	}
+
+	s = clean(s)
+	format = clean(format)
 
 	for from, to := range daToEn {
-		s = strings.Replace(s, from, strconv.Itoa(to), -1)
-	}
-	s = strings.Replace(s, ".", "", -1)
-
-	t, err := time.Parse(format, s)
-	if err != nil {
-		fmt.Println("Date Parsing Problem:", err)
+		if strings.Contains(s, from) {
+			s = strings.Replace(s, from, to, -1)
+			break
+		}
 	}
 
-	return t
+	return time.Parse(format, s)
 }
 
 func FilterAddressesByProperty(pt PropertyType, addrs []*Address, sales [][]Sale) ([]*Address, [][]Sale) {

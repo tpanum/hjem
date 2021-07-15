@@ -36,8 +36,8 @@ func NewServer(db *gorm.DB) *server {
 }
 
 type server struct {
-	dc *DawaCacher
-	bc *BoligaCacher
+	dc DawaCacher
+	bc BoligaCacher
 }
 
 func (s *server) handleLookup() http.HandlerFunc {
