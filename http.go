@@ -55,11 +55,8 @@ func (r *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 			return resp, nil
 		}
 
-		baseWait := 9 * time.Second
-		backoff := time.Duration(math.Pow(2, float64(i))) * time.Second
-		wait := baseWait + backoff
-
-		time.Sleep(wait)
+		backoff := time.Duration(math.Pow(1.5, float64(i))) * time.Second
+		time.Sleep(backoff)
 	}
 
 	return resp, err
