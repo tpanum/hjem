@@ -1,16 +1,23 @@
 package hjem
 
-import "net/http"
+import (
+	"math"
+	"net/http"
+	"time"
+)
 
 var DefaultClient http.Client
 
 func init() {
 	DefaultClient = http.Client{
-		Transport: &DefaultHeadersTripper{
-			next: http.DefaultTransport,
-			headers: map[string]string{
-				"User-Agent": "tpanum/hjem (github.com/tpanum/hjem)",
+		Transport: &RetryRoundTripper{
+			next: &DefaultHeadersTripper{
+				next: http.DefaultTransport,
+				headers: map[string]string{
+					"User-Agent": "tpanum/hjem (github.com/tpanum/hjem)",
+				},
 			},
+			maxRetries: 5,
 		},
 	}
 }
@@ -26,4 +33,31 @@ func (t *DefaultHeadersTripper) RoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	return t.next.RoundTrip(req)
+}
+
+type RetryRoundTripper struct {
+	next       http.RoundTripper
+	maxRetries int
+}
+
+func (r *RetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+
+	for i := 0; i <= r.maxRetries; i++ {
+		resp, err = r.next.RoundTrip(req)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != 429 {
+			return resp, nil
+		}
+
+		backoff := time.Duration(math.Pow(1.5, float64(i))) * time.Second
+		time.Sleep(backoff)
+	}
+
+	return resp, err
 }
